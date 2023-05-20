@@ -19,9 +19,7 @@ def main():
     game.add_player(player_4)
     game.add_player(player_5)
 
-    game.setup()
-
-    game.play_poker_round()
+    game.run()
 
 
 if __name__ == "__main__":

@@ -55,5 +55,5 @@ class Player():
     def is_all_in(self) -> bool:
         return self.money == 0
 
-    def get_is_folded(self) -> bool:
+    def is_folded(self) -> bool:
         return self.hand is None
