@@ -1,81 +1,37 @@
-
 import os
 from model.card import Card
 from model.deck import Deck
 from model.player import Player
+from collections import Counter
 
 
 class Game():
     MAX_CARDS_ON_TABLE = 5
 
     def __init__(self) -> None:
-        self.deck: Deck = None
+        self.deck: Deck = Deck()
         self.players: list[Player] = []
         self.players_in_game: list[Player] = []
         self.dealer_index: int = 0
         self.cards_on_table: list[Card] = []
         self.pot: int = 0
 
-    def __str__(self) -> str:
-        return f"{self.players}"
-
-    def __repr__(self) -> str:
-        return f"{self.players}"
-
-    def __len__(self) -> int:
-        return len(self.players)
-
-    def add_player(self, player: Player) -> None:
-        self.players.append(player)
-
-    def remove_player(self, player: Player) -> None:
-        if player in self.players:
-            self.players.remove(player)
-        else:
-            raise ValueError("Player not found in the game.")
-
-    def get_pot(self) -> int:
-        return self.pot
-
-    def set_pot(self, pot: int) -> None:
-        self.pot = pot
-
     def add_to_pot(self, amount: int) -> None:
         self.pot += amount
 
-    def get_players_in_game(self) -> list[Player]:
-        return self.players_in_game
+    def add_player(self, player: Player) -> None:
+        self.players.append(player)
+        self.players_in_game.append(player)
 
-    def set_players_in_game(self, players: list[Player]) -> None:
-        self.players_in_game = players
+    def remove_player(self, player: Player) -> None:
+        self.players.remove(player)
+        self.players_in_game.remove(player)
 
-    def init_deck(self) -> None:
-        self.deck = Deck()
-        self.deck.shuffle()
+    def set_cards_on_table(self, cards: list[Card]) -> None:
+        self.cards_on_table = cards
 
-    def deal_cards(self) -> None:
-        for player in self.players:
-            player.add_card(self.deck.deal(), self.deck.deal())
-
-    def deal_card_on_table(self) -> None:
-        if len(self.cards_on_table) < 4:
-            for _ in range(3):
-                self.cards_on_table.append(self.deck.deal(is_visible=False))
-        else:
-            self.cards_on_table.append(self.deck.deal())
-
-    def show_table(self) -> list[Card]:
+    def show_table(self) -> str:
         return f"{self.cards_on_table}"
-
-    def show_player_hand(player: Player) -> tuple[Card, Card]:
-        return f"{player.get_hand()}"
-
-    def setup(self):
-        self.init_deck()
-        self.players[self.dealer_index].set_is_dealer(True)
-        self.set_players_in_game(self.players)
-        self.deal_cards()
-        self.deal_card_on_table()
 
     def show_current_state(self, current_player: Player) -> None:
         os.system('clear')
@@ -85,10 +41,20 @@ class Game():
         print("Cards on table:")
         print(self.show_table())
 
-    def ask_for_bet(self):
-        return input("Do you want to bet? (y/n) ")
+    def deal_cards(self) -> None:
+        for player in self.players_in_game:
+            player.add_card(self.deck.deal(), self.deck.deal())
 
-    def process_bet(self, current_player):
+    def flop(self) -> None:
+        self.cards_on_table.extend([self.deck.deal() for _ in range(3)])
+
+    def turn(self) -> None:
+        self.cards_on_table.append(self.deck.deal())
+
+    def river(self) -> None:
+        self.cards_on_table.append(self.deck.deal())
+
+    def process_bet(self, current_player: Player) -> None:
         amount = 0
         while True:
             try:
@@ -104,42 +70,92 @@ class Game():
         if bet_amount == current_player.get_money():
             current_player.is_all_in()
 
-    def run(self):
-        self.setup()
+        return current_player.is_all_in()
 
-        while len(self.get_players_in_game()) > 1 and len(self.cards_on_table) < self.MAX_CARDS_ON_TABLE:
-            num_players = len(self.players_in_game)
+    def collect_bets(self) -> None:
+        for player in self.players_in_game:
+            self.show_current_state(player)
+            will_fold = input("Fold? (y/n) ")
+            if will_fold == "y":
+                player.fold()
+                self.remove_player(player)
+                continue
+            self.process_bet(player)
 
-            for i in range(num_players):
-                current_player = self.players_in_game[(
-                    self.dealer_index + i + 1) % num_players]
+    def play_round(self) -> None:
+        self.deck.shuffle()
+        self.deal_cards()
+        self.collect_bets()
+        self.flop()
+        self.collect_bets()
+        self.turn()
+        self.collect_bets()
+        self.river()
+        self.collect_bets()
 
-                if current_player.is_folded() or current_player.get_money() <= 0:
-                    continue
+    def evaluate_rank(self, player: Player) -> int:
+        values = [card.get_value().value for card in player.get_hand()]
+        values.extend([card.get_value().value for card in self.cards_on_table])
+        values.sort(reverse=True)
 
-                self.show_current_state(current_player)
+        suits = [card.get_suit().value for card in player.get_hand()]
+        suits.extend([card.get_suit().value for card in self.cards_on_table])
+        suits.sort(reverse=True)
 
-                print(self.players_in_game)
-                will_bet = self.ask_for_bet()
-                if will_bet.lower() == "y":
-                    self.process_bet(current_player)
-                elif will_bet.lower() == "n":
-                    current_player.fold()
+        ranks = [
+            (10, values[:5]) if self.is_royal_flush(values, suits) else
+            (9, values[:5]) if self.is_straight_flush(values, suits) else
+            (8, values[:5]) if self.is_four_of_a_kind(values) else
+            (7, values[:5]) if self.is_full_house(values) else
+            (6, values[:5]) if self.is_flush(suits) else
+            (5, values[:5]) if self.is_straight(values) else
+            (4, values[:5]) if self.is_three_of_a_kind(values) else
+            (3, values[:5]) if self.is_two_pair(values) else
+            (2, values[:5]) if self.is_pair(values) else
+            (1, values[:5])
+        ]
 
-            # Remove players who have no money left or have folded
-            players_last_round: list[Player] = self.players_in_game.copy()
-            self.players_in_game = [
-                player for player in players_last_round if not player.is_folded() and player.get_money() > 0]
+        return max(ranks)
 
-            # If only one player is left, break the loop
-            if len(self.get_players_in_game()) <= 1:
-                break
+    def is_royal_flush(self, values: list[int], suits: list[int]) -> bool:
+        return self.is_straight_flush(sorted(values), suits) and max(values) == 14
 
-            self.dealer_index = (self.dealer_index + 1) % num_players
-            self.players[self.dealer_index].set_is_dealer(True)
+    def is_straight_flush(self, values: list[int], suits: list[int]) -> bool:
+        return self.is_flush(suits) and self.is_straight(values)
 
-            if len(self.cards_on_table) < self.MAX_CARDS_ON_TABLE:
-                self.deal_card_on_table()
+    def is_four_of_a_kind(self, values: list[int]) -> bool:
+        value_counts = Counter(values)
+        return 4 in value_counts.values()
 
-    def get_cards_on_table(self) -> list[Card]:
-        return self.cards_on_table
+    def is_full_house(self, values: list[int]) -> bool:
+        value_counts = Counter(values)
+        return set(value_counts.values()) == {2, 3}
+
+    def is_flush(self, suits: list[int]) -> bool:
+        suits_count = Counter(suits)
+        return max(suits_count.values()) >= 5
+
+    def is_straight(self, values: list[int]) -> bool:
+        sorted_values = sorted(values)
+        for i in range(len(sorted_values) - 4):
+            if sorted_values[i:i+5] == list(range(sorted_values[i], sorted_values[i] + 5)):
+                return True
+        # Special case for Ace to 5 straight
+        if sorted_values[:4] == [2, 3, 4, 5] and 14 in sorted_values:
+            return True
+        return False
+
+    def is_three_of_a_kind(self, values: list[int]) -> bool:
+        value_counts = Counter(values)
+        return 3 in value_counts.values()
+
+    def is_two_pair(self, values: list[int]) -> bool:
+        value_counts = Counter(values)
+        return list(value_counts.values()).count(2) >= 2
+
+    def is_pair(self, values: list[int]) -> bool:
+        value_counts = Counter(values)
+        return 2 in value_counts.values()
+
+    def run(self) -> None:
+        self.play_round()
