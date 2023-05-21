@@ -1,8 +1,9 @@
+from operator import itemgetter
 import os
 from model.card import Card
 from model.deck import Deck
 from model.player import Player
-from collections import Counter
+from collections import Counter, defaultdict
 
 
 class Game():
@@ -92,70 +93,103 @@ class Game():
         self.collect_bets()
         self.river()
         self.collect_bets()
+        winner = self.get_winner()
+        print(f"The winner is {winner.get_name()}")
+
+    def get_winner(self) -> Player:
+        players_rank = [(player, self.evaluate_rank(player))
+                        for player in self.players_in_game]
+        sorted_players_rank = sorted(
+            players_rank, key=itemgetter(1), reverse=True)
+        return sorted_players_rank[0][0]
 
     def evaluate_rank(self, player: Player) -> int:
-        values = [card.get_value().value for card in player.get_hand()]
-        values.extend([card.get_value().value for card in self.cards_on_table])
-        values.sort(reverse=True)
+        cards_values = [card.get_value() for card in player.get_hand()]
+        cards_values.extend([card.get_value() for card in self.cards_on_table])
 
-        suits = [card.get_suit().value for card in player.get_hand()]
-        suits.extend([card.get_suit().value for card in self.cards_on_table])
-        suits.sort(reverse=True)
+        suits = [card.get_suit() for card in player.get_hand()]
+        suits.extend([card.get_suit() for card in self.cards_on_table])
 
-        ranks = [
-            (10, values[:5]) if self.is_royal_flush(values, suits) else
-            (9, values[:5]) if self.is_straight_flush(values, suits) else
-            (8, values[:5]) if self.is_four_of_a_kind(values) else
-            (7, values[:5]) if self.is_full_house(values) else
-            (6, values[:5]) if self.is_flush(suits) else
-            (5, values[:5]) if self.is_straight(values) else
-            (4, values[:5]) if self.is_three_of_a_kind(values) else
-            (3, values[:5]) if self.is_two_pair(values) else
-            (2, values[:5]) if self.is_pair(values) else
-            (1, values[:5])
+        values_by_suit = defaultdict(list)
+
+        for suit, value in zip(suits, cards_values):
+            values_by_suit[suit].append(value)
+
+        rank = [
+            10 if self.is_royal_flush(values_by_suit) else 0,
+            9 if self.is_straight_flush(values_by_suit) else 0,
+            8 if self.is_four_of_a_kind(cards_values) else 0,
+            7 if self.is_full_house(cards_values) else 0,
+            6 if self.is_flush(suits) else 0,
+            5 if self.is_straight(cards_values) else 0,
+            4 if self.is_three_of_a_kind(cards_values) else 0,
+            3 if self.is_two_pairs(cards_values) else 0,
+            2 if self.is_pair(cards_values) else 0,
+            1 if self.is_high_card(cards_values) else 0
         ]
 
-        return max(ranks)
+        return max(rank)
 
-    def is_royal_flush(self, values: list[int], suits: list[int]) -> bool:
-        return self.is_straight_flush(sorted(values), suits) and max(values) == 14
+    def is_royal_flush(self, values_by_suit: dict) -> bool:
+        for suit, values in values_by_suit.items():
+            if len(values) < 5:
+                continue
 
-    def is_straight_flush(self, values: list[int], suits: list[int]) -> bool:
-        return self.is_flush(suits) and self.is_straight(values)
+            values_list = sorted([value.value for value in values])
 
-    def is_four_of_a_kind(self, values: list[int]) -> bool:
-        value_counts = Counter(values)
-        return 4 in value_counts.values()
-
-    def is_full_house(self, values: list[int]) -> bool:
-        value_counts = Counter(values)
-        return set(value_counts.values()) == {2, 3}
-
-    def is_flush(self, suits: list[int]) -> bool:
-        suits_count = Counter(suits)
-        return max(suits_count.values()) >= 5
-
-    def is_straight(self, values: list[int]) -> bool:
-        sorted_values = sorted(values)
-        for i in range(len(sorted_values) - 4):
-            if sorted_values[i:i+5] == list(range(sorted_values[i], sorted_values[i] + 5)):
+            if values_list[-5:] == [10, 11, 12, 13, 14]:
                 return True
-        # Special case for Ace to 5 straight
-        if sorted_values[:4] == [2, 3, 4, 5] and 14 in sorted_values:
-            return True
+
         return False
 
-    def is_three_of_a_kind(self, values: list[int]) -> bool:
-        value_counts = Counter(values)
-        return 3 in value_counts.values()
+    def is_straight_flush(self, values_by_suit: dict) -> bool:
+        for suit, values in values_by_suit.items():
+            if len(values) < 5:
+                continue
 
-    def is_two_pair(self, values: list[int]) -> bool:
-        value_counts = Counter(values)
-        return list(value_counts.values()).count(2) >= 2
+            values_list = sorted([value.value for value in values])
 
-    def is_pair(self, values: list[int]) -> bool:
-        value_counts = Counter(values)
-        return 2 in value_counts.values()
+            for i in range(len(values_list) - 4):
+                if values_list[i:i+5] == list(range(values_list[i], values_list[i] + 5)):
+                    return True
+
+        return False
+
+    def is_four_of_a_kind(self, cards_values: list) -> bool:
+        number_of_cards_by_value = Counter(cards_values)
+        return 4 in number_of_cards_by_value.values()
+
+    def is_full_house(self, cards_values: list) -> bool:
+        number_of_cards_by_value = Counter(cards_values)
+        return 3 in number_of_cards_by_value.values() and 2 in number_of_cards_by_value.values()
+
+    def is_flush(self, suits: list) -> bool:
+        number_of_cards_by_suit = Counter(suits)
+        return 5 in number_of_cards_by_suit.values() or 6 in number_of_cards_by_suit.values() or 7 in number_of_cards_by_suit.values()
+
+    def is_straight(self, cards_values: list) -> bool:
+        values_list = sorted([value.value for value in cards_values])
+
+        for i in range(len(values_list) - 4):
+            if values_list[i:i+5] == list(range(values_list[i], values_list[i] + 5)):
+                return True
+
+        return False
+
+    def is_three_of_a_kind(self, cards_values: list) -> bool:
+        number_of_cards_by_value = Counter(cards_values)
+        return 3 in number_of_cards_by_value.values()
+
+    def is_two_pairs(self, cards_values: list) -> bool:
+        number_of_cards_by_value = Counter(cards_values)
+        return list(number_of_cards_by_value.values()).count(2) == 2
+
+    def is_pair(self, cards_values: list) -> bool:
+        number_of_cards_by_value = Counter(cards_values)
+        return 2 in number_of_cards_by_value.values()
+
+    def is_high_card(self, cards_values: list) -> bool:
+        return True
 
     def run(self) -> None:
         self.play_round()

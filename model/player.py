@@ -19,6 +19,9 @@ class Player():
     def __len__(self) -> int:
         return len(self.hand)
 
+    def get_name(self) -> str:
+        return self.name
+
     def add_card(self, card1: Card, card2: Card) -> None:
         self.hand = (card1, card2)
 
