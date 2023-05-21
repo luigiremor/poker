@@ -13,7 +13,6 @@ class Game():
         self.deck: Deck = Deck()
         self.players: list[Player] = []
         self.players_in_game: list[Player] = []
-        self.dealer_index: int = 0
         self.cards_on_table: list[Card] = []
         self.pot: int = 0
 
