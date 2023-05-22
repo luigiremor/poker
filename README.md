@@ -12,6 +12,10 @@ This project is a Python implementation of the classic card game, Poker. It supp
 - Game: This is the main class that drives the game, handling player turns and evaluating hands.
 - Rules: A class that contains the logic for evaluating poker hands based on standard poker rules.
 
+### UML Diagram
+
+![image](https://github.com/luigiremor/poker/assets/83187751/b356120b-87e6-40ec-807b-b26b9486fe76)
+
 ## Rules applied
 
 The following are the poker hand ranks evaluated by this implementation, ordered from highest (10) to lowest (1):
