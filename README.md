@@ -14,7 +14,7 @@ This project is a Python implementation of the classic card game, Poker. It supp
 
 ### UML Diagram
 
-![image](https://github.com/luigiremor/poker/assets/83187751/b356120b-87e6-40ec-807b-b26b9486fe76)
+![image](https://github.com/luigiremor/poker/assets/83187751/b3003c2a-0e51-4064-b852-5ab5570c34f4)
 
 ## Rules applied
 
